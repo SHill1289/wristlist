@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const credits = [
   {
     watch: "Omega Speedmaster Professional",
@@ -25,7 +27,7 @@ const credits = [
 export default function CreditsPage() {
   return (
     <main className="credits-page">
-      <a className="credits-back" href="/">← Back to Wristlist</a>
+      <Link className="credits-back" href="/">← Back to Wristlist</Link>
       <p className="eyebrow">IMAGE ATTRIBUTION</p>
       <h1>Photo credits.</h1>
       <p className="credits-intro">These photographs depict real watches and are used under the terms listed below. Brand names and trademarks belong to their respective owners. Wristlist is not affiliated with or endorsed by Omega, Rolex, or Cartier.</p>
