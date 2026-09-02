@@ -22,6 +22,26 @@ const credits = [
     source: null,
     licenseUrl: null,
   },
+  ...[
+    "Seiko 5 Sports SRPD55",
+    "Hamilton Khaki Field Mechanical",
+    "Tissot PRX Powermatic 80",
+    "Longines Spirit Zulu Time",
+    "Tudor Black Bay 58",
+    "Grand Seiko Snowflake SBGA211",
+    "Omega Seamaster Diver 300M",
+    "IWC Mark XX",
+    "Rolex Explorer 124270",
+    "Jaeger-LeCoultre Reverso Tribute",
+    "Rolex GMT-Master II 126710BLRO",
+    "Audemars Piguet Royal Oak 15510ST",
+  ].map((watch) => ({
+    watch,
+    author: "Source image supplied by project owner",
+    license: "Usage rights must be confirmed before commercial release",
+    source: null,
+    licenseUrl: null,
+  })),
 ];
 
 export default function CreditsPage() {

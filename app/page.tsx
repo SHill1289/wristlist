@@ -4,16 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, CheckCircle2, ChevronDown, Compass, Gem, Heart, Search, Sparkles, Trophy, WalletCards, Watch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
-type WatchListing = { id: number; maker: string; model: string; reference: string; category: string; price: number; market: number; image: string; color: string; note: string };
+import { WATCHES, type WatchListing } from "@/data/watches";
 type Holding = { watchId: number; purchasePrice: number; acquiredAt: string };
 type Portfolio = { cash: number; holdings: Holding[] };
-
-const WATCHES: WatchListing[] = [
-  { id: 1, maker: "Omega", model: "Speedmaster Professional", reference: "3570.50", category: "Sport", price: 4900, market: 5050, image: "/watches/omega-speedmaster-studio.png", color: "Black dial · Steel", note: "Moonwatch icon" },
-  { id: 2, maker: "Rolex", model: "Submariner", reference: "14060M", category: "Dive", price: 11250, market: 11400, image: "/watches/rolex-submariner-studio.png", color: "No-date · Steel", note: "Collector favorite" },
-  { id: 3, maker: "Cartier", model: "Tank Automatic", reference: "XL", category: "Dress", price: 4200, market: 3900, image: "/watches/cartier-tank-studio.png", color: "Silver dial · Leather", note: "Design classic" },
-];
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const STARTING_BALANCE = 50000;
@@ -158,7 +151,7 @@ export default function Home() {
               const watchGain = holding ? watch.market - holding.purchasePrice : 0;
               return (
                 <article className="watch-card" key={watch.id}>
-                  <div className="watch-image-wrap">
+                  <div className={`watch-image-wrap ${watch.imageStyle === "cutout" ? "cutout-image" : ""}`}>
                     <span className="card-tag">{watch.note}</span>
                     <button className={`save-button ${isSaved ? "saved" : ""}`} onClick={() => setSaved((current) => isSaved ? current.filter((id) => id !== watch.id) : [...current, watch.id])} aria-label={isSaved ? `Remove ${watch.model} from saved watches` : `Save ${watch.model}`}><Heart fill={isSaved ? "currentColor" : "none"} /></button>
                     <img src={watch.image} alt={`${watch.maker} ${watch.model} watch`} />
