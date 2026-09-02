@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 type WatchListing = { id: number; maker: string; model: string; reference: string; category: string; price: number; market: number; image: string; color: string; note: string };
 
 const WATCHES: WatchListing[] = [
-  { id: 1, maker: "Omega", model: "Speedmaster Professional", reference: "3570.50", category: "Sport", price: 4900, market: 5050, image: "/watches/omega-speedmaster.jpg", color: "Black dial · Steel", note: "Moonwatch icon" },
+  { id: 1, maker: "Omega", model: "Speedmaster Professional", reference: "3570.50", category: "Sport", price: 4900, market: 5050, image: "/watches/omega-speedmaster-studio.png", color: "Black dial · Steel", note: "Moonwatch icon" },
   { id: 2, maker: "Rolex", model: "Submariner", reference: "14060M", category: "Dive", price: 11250, market: 11400, image: "/watches/rolex-submariner-studio.png", color: "No-date · Steel", note: "Collector favorite" },
   { id: 3, maker: "Cartier", model: "Tank Automatic", reference: "XL", category: "Dress", price: 4200, market: 3900, image: "/watches/cartier-tank-studio.png", color: "Silver dial · Leather", note: "Design classic" },
 ];
