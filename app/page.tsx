@@ -8,9 +8,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 type WatchListing = { id: number; maker: string; model: string; reference: string; category: string; price: number; market: number; image: string; color: string; note: string };
 
 const WATCHES: WatchListing[] = [
-  { id: 1, maker: "Aster & Vale", model: "Apex 38", reference: "AV-3801-B", category: "Sport", price: 12800, market: 13450, image: "/watches/apex-blue.png", color: "Blue dial · Steel", note: "Trending this week" },
-  { id: 2, maker: "Northstar", model: "Pelagic 300", reference: "NS-P300-01", category: "Dive", price: 8600, market: 8250, image: "/watches/pelagic-black.png", color: "Black dial · Steel", note: "Collector favorite" },
-  { id: 3, maker: "Maison Céleste", model: "Carré Privé", reference: "MC-CP24-G", category: "Dress", price: 16400, market: 17200, image: "/watches/carre-gold.png", color: "Ivory dial · Gold", note: "Only 7% own this" },
+  { id: 1, maker: "Omega", model: "Speedmaster Professional", reference: "3570.50", category: "Sport", price: 4900, market: 5050, image: "/watches/omega-speedmaster.jpg", color: "Black dial · Steel", note: "Moonwatch icon" },
+  { id: 2, maker: "Rolex", model: "Submariner", reference: "14060M", category: "Dive", price: 11250, market: 11400, image: "/watches/rolex-submariner-studio.png", color: "No-date · Steel", note: "Collector favorite" },
+  { id: 3, maker: "Cartier", model: "Tank Automatic", reference: "XL", category: "Dress", price: 4200, market: 3900, image: "/watches/cartier-tank-studio.png", color: "Silver dial · Leather", note: "Design classic" },
 ];
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -118,6 +118,11 @@ export default function Home() {
           <div className="empty-state"><span><Compass /></span><h2>Your watch box is waiting.</h2><p>Explore today’s drop and virtually acquire your first piece.</p><Button onClick={() => setActiveTab("discover")}>Browse watches</Button></div>
         )}
       </section>
+
+      <footer className="site-footer">
+        <span>Independent fantasy-collecting project. Not affiliated with the featured brands.</span>
+        <a href="/credits">Photo credits</a>
+      </footer>
 
       <nav className="mobile-nav" aria-label="Mobile navigation">
         <button className={activeTab === "discover" ? "active" : ""} onClick={() => setActiveTab("discover")}><Compass />Discover</button>
