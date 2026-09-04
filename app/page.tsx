@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, CheckCircle2, ChevronDown, CircleCheck, Compass, Gem, Gift, Heart, Search, SlidersHorizontal, Sparkles, Target, Trophy, WalletCards, Watch, X } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Check, CheckCircle2, ChevronDown, CircleCheck, Compass, Copy, Gem, Gift, Heart, Search, Share2, SlidersHorizontal, Sparkles, Target, Trophy, WalletCards, Watch, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WATCHES, type WatchListing } from "@/data/watches";
@@ -71,6 +71,9 @@ export default function Home() {
   const [preferences, setPreferences] = useState<Preferences>(DEFAULT_PREFERENCES);
   const [draftPreferences, setDraftPreferences] = useState<Preferences>(DEFAULT_PREFERENCES);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState("");
+  const [shareCopied, setShareCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>("discover");
   const [showAll, setShowAll] = useState(false);
   const [todayKey, setTodayKey] = useState("");
@@ -265,6 +268,34 @@ export default function Home() {
     setNotice("Your daily drop has been personalized.");
   }
 
+  function createShareLink() {
+    if (!portfolio.holdings.length) return;
+    const snapshot = {
+      version: 1,
+      date: localDateKey(),
+      items: portfolio.holdings.map((holding) => ({
+        id: holding.watchId,
+        paid: holding.purchasePrice,
+        market: WATCHES.find((watch) => watch.id === holding.watchId)?.market ?? holding.purchasePrice,
+      })),
+    };
+    const token = window.btoa(JSON.stringify(snapshot)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+    setShareUrl(`${window.location.origin}/share/${token}`);
+    setShareCopied(false);
+    setShareOpen(true);
+  }
+
+  async function copyShareLink() {
+    if (!shareUrl) return;
+    await window.navigator.clipboard.writeText(shareUrl);
+    setShareCopied(true);
+  }
+
+  async function openNativeShare() {
+    if (!shareUrl || !window.navigator.share) return;
+    await window.navigator.share({ title: "My Wristlist collection", text: "Take a look at this virtual watch collection.", url: shareUrl });
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -292,6 +323,7 @@ export default function Home() {
             <p className="eyebrow"><Sparkles /> {activeTab === "challenges" ? "COLLECTOR CHALLENGES" : activeTab === "saved" ? "YOUR SHORTLIST" : activeTab === "collection" ? "YOUR COLLECTION" : "TODAY’S DROP"}</p>
             <h1>{activeTab === "discover" ? "Find your next watch." : activeTab === "saved" ? "Worth another look." : activeTab === "collection" ? "Your watch box." : "Put your collection to work."}</h1>
             <p className="intro">{activeTab === "discover" ? "Build the collection you want. Your wallet stays untouched." : activeTab === "saved" ? `${saved.length} ${saved.length === 1 ? "watch" : "watches"} saved for later consideration.` : activeTab === "collection" ? `${portfolio.holdings.length} ${portfolio.holdings.length === 1 ? "watch" : "watches"} acquired with zero buyer’s remorse.` : "Complete collection goals and earn more play money for your next acquisition."}</p>
+            {activeTab === "collection" && portfolio.holdings.length > 0 && <button type="button" className="collection-share-button" onClick={createShareLink}><Share2 /> Share collection</button>}
           </div>
           <aside className="streak-card">
             <span className="streak-icon"><Trophy /></span>
@@ -487,6 +519,24 @@ export default function Home() {
           <DialogFooter className="preferences-footer">
             {preferences.completed && <Button variant="outline" onClick={() => setDraftPreferences({ ...DEFAULT_PREFERENCES, completed: true })}>Reset choices</Button>}
             <Button className="save-preferences-button" disabled={!draftPreferences.styles.length} onClick={savePreferences}>{preferences.completed ? "Update my drop" : "Build my first drop"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent className="share-dialog">
+          <DialogHeader>
+            <p className="eyebrow"><Share2 /> COLLECTION SNAPSHOT</p>
+            <DialogTitle>Your watch box is ready to share.</DialogTitle>
+            <DialogDescription>This read-only link captures the watches and values in your collection right now. Your play-money balance, saved watches, streak, and preferences stay private.</DialogDescription>
+          </DialogHeader>
+          <label className="share-link-field">
+            <span>Public snapshot link</span>
+            <input readOnly value={shareUrl} onFocus={(event) => event.currentTarget.select()} aria-label="Public collection snapshot link" />
+          </label>
+          <DialogFooter>
+            {typeof navigator !== "undefined" && typeof navigator.share === "function" && <Button variant="outline" onClick={openNativeShare}><Share2 /> Share</Button>}
+            <Button className="copy-link-button" onClick={copyShareLink}>{shareCopied ? <><Check /> Copied</> : <><Copy /> Copy link</>}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
