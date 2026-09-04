@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, CheckCircle2, ChevronDown, Compass, Gem, Heart, Search, Sparkles, Trophy, WalletCards, Watch } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDownRight, ArrowUpRight, CheckCircle2, ChevronDown, Compass, Gem, Heart, Search, Sparkles, Trophy, WalletCards, Watch, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WATCHES, type WatchListing } from "@/data/watches";
 type Holding = { watchId: number; purchasePrice: number; acquiredAt: string };
 type Portfolio = { cash: number; holdings: Holding[] };
+type SortOption = "curated" | "price-low" | "price-high" | "market-high" | "performance";
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const STARTING_BALANCE = 50000;
@@ -18,10 +19,13 @@ export default function Home() {
   const [saved, setSaved] = useState<number[]>([2]);
   const [activeTab, setActiveTab] = useState<"discover" | "collection">("discover");
   const [category, setCategory] = useState("All watches");
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortOption>("curated");
   const [selected, setSelected] = useState<WatchListing | null>(null);
   const [selling, setSelling] = useState<WatchListing | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -71,9 +75,22 @@ export default function Home() {
   const portfolioGain = portfolioValue - STARTING_BALANCE;
   const portfolioReturn = (portfolioGain / STARTING_BALANCE) * 100;
   const visibleWatches = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
     const base = activeTab === "collection" ? WATCHES.filter((watch) => owned.has(watch.id)) : WATCHES;
-    return category === "All watches" ? base : base.filter((watch) => watch.category === category);
-  }, [activeTab, category, owned]);
+    const filtered = base.filter((watch) => {
+      const matchesCategory = category === "All watches" || watch.category === category;
+      const searchable = `${watch.maker} ${watch.model} ${watch.reference} ${watch.category} ${watch.color}`.toLowerCase();
+      return matchesCategory && (!normalizedQuery || searchable.includes(normalizedQuery));
+    });
+
+    return [...filtered].sort((a, b) => {
+      if (sort === "price-low") return a.price - b.price;
+      if (sort === "price-high") return b.price - a.price;
+      if (sort === "market-high") return b.market - a.market;
+      if (sort === "performance") return (b.market - b.price) / b.price - (a.market - a.price) / a.price;
+      return a.id - b.id;
+    });
+  }, [activeTab, category, owned, query, sort]);
 
   function acquire() {
     if (!selected || owned.has(selected.id) || selected.price > portfolio.cash) return;
@@ -109,7 +126,7 @@ export default function Home() {
           <button>Challenges</button>
         </nav>
         <div className="header-actions">
-          <button className="icon-button" aria-label="Search"><Search /></button>
+          <button className="icon-button" aria-label="Search watches" onClick={() => searchRef.current?.focus()}><Search /></button>
           <div className="balance-pill"><span>PLAY MONEY</span><strong>{money.format(portfolio.cash)}</strong></div>
           <button className="avatar" aria-label="Profile">A</button>
         </div>
@@ -135,11 +152,28 @@ export default function Home() {
           <div><span>{portfolioGain < 0 ? <ArrowDownRight /> : <ArrowUpRight />} Portfolio return</span><strong className={portfolioGain < 0 ? "negative" : "positive"}>{portfolioGain >= 0 ? "+" : ""}{portfolioReturn.toFixed(1)}%</strong><small>{portfolioGain >= 0 ? "+" : ""}{money.format(portfolioGain)} overall</small></div>
         </div>
 
-        <div className="catalog-head">
-          <div className="filters" aria-label="Watch category">
-            {["All watches", "Sport", "Dive", "Dress"].map((filter) => <button key={filter} className={category === filter ? "selected" : ""} onClick={() => setCategory(filter)}>{filter}</button>)}
+        <div className="catalog-tools">
+          <label className="catalog-search">
+            <Search aria-hidden="true" />
+            <input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search brand, model, or reference" aria-label="Search watches" />
+            {query && <button type="button" onClick={() => { setQuery(""); searchRef.current?.focus(); }} aria-label="Clear search"><X /></button>}
+          </label>
+          <div className="catalog-head">
+            <div className="filters" aria-label="Watch category">
+              {["All watches", "Sport", "Dive", "Dress"].map((filter) => <button key={filter} className={category === filter ? "selected" : ""} onClick={() => setCategory(filter)}>{filter}</button>)}
+            </div>
+            <label className="sort-select">
+              <select value={sort} onChange={(event) => setSort(event.target.value as SortOption)} aria-label="Sort watches">
+                <option value="curated">Curated for you</option>
+                <option value="price-low">Price: low to high</option>
+                <option value="price-high">Price: high to low</option>
+                <option value="market-high">Highest market value</option>
+                <option value="performance">Best market performance</option>
+              </select>
+              <ChevronDown aria-hidden="true" />
+            </label>
           </div>
-          <button className="sort-button">Curated for you <ChevronDown /></button>
+          <p className="catalog-count">Showing {visibleWatches.length} of {activeTab === "collection" ? portfolio.holdings.length : WATCHES.length} watches</p>
         </div>
 
         {visibleWatches.length > 0 ? (
@@ -169,7 +203,7 @@ export default function Home() {
             })}
           </div>
         ) : (
-          <div className="empty-state"><span><Compass /></span><h2>Your watch box is waiting.</h2><p>Explore today’s drop and virtually acquire your first piece.</p><Button onClick={() => setActiveTab("discover")}>Browse watches</Button></div>
+          <div className="empty-state"><span><Compass /></span><h2>{query || category !== "All watches" ? "No watches match." : "Your watch box is waiting."}</h2><p>{query || category !== "All watches" ? "Try another search or clear your filters." : "Explore today’s drop and virtually acquire your first piece."}</p>{query || category !== "All watches" ? <Button onClick={() => { setQuery(""); setCategory("All watches"); }}>Clear filters</Button> : <Button onClick={() => setActiveTab("discover")}>Browse watches</Button>}</div>
         )}
       </section>
 
