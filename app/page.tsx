@@ -10,19 +10,44 @@ type Holding = { watchId: number; purchasePrice: number; acquiredAt: string };
 type Portfolio = { cash: number; holdings: Holding[] };
 type SortOption = "curated" | "price-low" | "price-high" | "market-high" | "performance";
 type AppTab = "discover" | "collection" | "challenges";
+type StreakState = { lastVisit: string; current: number; longest: number; rewardedDates: string[] };
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const STARTING_BALANCE = 50000;
 const PORTFOLIO_KEY = "wristlist-portfolio-v1";
 const SAVED_KEY = "wristlist-saved-v1";
 const CLAIMED_KEY = "wristlist-claimed-challenges-v1";
+const STREAK_KEY = "wristlist-streak-v1";
+const STREAK_REWARD = 2500;
 const CHALLENGE_REWARDS: Record<string, number> = { "first-three": 2000, "well-rounded": 3000, "dive-team": 2500, "brand-explorer": 4000, "heavy-hitter": 5000 };
+
+function localDateKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function daysBetween(previous: string, current: string) {
+  const [previousYear, previousMonth, previousDay] = previous.split("-").map(Number);
+  const [currentYear, currentMonth, currentDay] = current.split("-").map(Number);
+  return Math.round((Date.UTC(currentYear, currentMonth - 1, currentDay) - Date.UTC(previousYear, previousMonth - 1, previousDay)) / 86400000);
+}
+
+function dailySelection(dateKey: string) {
+  const seed = [...dateKey].reduce((total, character) => total * 31 + character.charCodeAt(0), 7);
+  const tiers = [WATCHES.filter((watch) => watch.price < 1500), WATCHES.filter((watch) => watch.price >= 1500 && watch.price < 10000), WATCHES.filter((watch) => watch.price >= 10000)];
+  const pick = (items: WatchListing[], offset: number) => [items[(seed + offset) % items.length], items[(seed + offset + Math.max(1, Math.floor(items.length / 2))) % items.length]];
+  const [affordable, midrange, aspirational] = [pick(tiers[0], 0), pick(tiers[1], 3), pick(tiers[2], 5)];
+  return [affordable[0], midrange[0], aspirational[0], affordable[1], midrange[1], aspirational[1]];
+}
 
 export default function Home() {
   const [portfolio, setPortfolio] = useState<Portfolio>({ cash: STARTING_BALANCE, holdings: [] });
   const [saved, setSaved] = useState<number[]>([2]);
   const [claimedChallenges, setClaimedChallenges] = useState<string[]>([]);
+  const [streak, setStreak] = useState<StreakState>({ lastVisit: "", current: 0, longest: 0, rewardedDates: [] });
   const [activeTab, setActiveTab] = useState<AppTab>("discover");
+  const [showAll, setShowAll] = useState(false);
+  const [todayKey, setTodayKey] = useState("");
+  const [dropCountdown, setDropCountdown] = useState("");
   const [category, setCategory] = useState("All watches");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortOption>("curated");
@@ -38,10 +63,13 @@ export default function Home() {
         const storedPortfolio = window.localStorage.getItem(PORTFOLIO_KEY);
         const storedSaved = window.localStorage.getItem(SAVED_KEY);
         const storedClaims = window.localStorage.getItem(CLAIMED_KEY);
+        const storedStreak = window.localStorage.getItem(STREAK_KEY);
+        const today = localDateKey();
+        let nextPortfolio: Portfolio = { cash: STARTING_BALANCE, holdings: [] };
 
         if (storedPortfolio) {
           const parsed = JSON.parse(storedPortfolio) as Portfolio;
-          if (typeof parsed.cash === "number" && Array.isArray(parsed.holdings)) setPortfolio(parsed);
+          if (typeof parsed.cash === "number" && Array.isArray(parsed.holdings)) nextPortfolio = parsed;
         } else {
           const legacyOwned = JSON.parse(window.localStorage.getItem("wristlist-owned") ?? "[]") as number[];
           const legacyHoldings = legacyOwned.flatMap((id) => {
@@ -49,14 +77,29 @@ export default function Home() {
             return watch ? [{ watchId: id, purchasePrice: watch.price, acquiredAt: new Date().toISOString() }] : [];
           });
           if (legacyHoldings.length) {
-            setPortfolio({ cash: STARTING_BALANCE - legacyHoldings.reduce((sum, item) => sum + item.purchasePrice, 0), holdings: legacyHoldings });
+            nextPortfolio = { cash: STARTING_BALANCE - legacyHoldings.reduce((sum, item) => sum + item.purchasePrice, 0), holdings: legacyHoldings };
           }
         }
 
         if (storedSaved) setSaved(JSON.parse(storedSaved));
         if (storedClaims) setClaimedChallenges(JSON.parse(storedClaims));
+        const previousStreak: StreakState = storedStreak ? JSON.parse(storedStreak) : { lastVisit: "", current: 0, longest: 0, rewardedDates: [] };
+        const difference = previousStreak.lastVisit ? daysBetween(previousStreak.lastVisit, today) : null;
+        const currentStreak = difference === 0 ? previousStreak.current : difference === 1 ? previousStreak.current + 1 : 1;
+        const isNewVisit = difference !== 0;
+        const earnsReward = isNewVisit && currentStreak % 7 === 0 && !previousStreak.rewardedDates.includes(today);
+        const nextStreak = { lastVisit: today, current: currentStreak, longest: Math.max(previousStreak.longest, currentStreak), rewardedDates: earnsReward ? [...previousStreak.rewardedDates, today] : previousStreak.rewardedDates };
+        if (earnsReward) {
+          nextPortfolio = { ...nextPortfolio, cash: nextPortfolio.cash + STREAK_REWARD };
+          setNotice(`Seven-day streak complete. ${money.format(STREAK_REWARD)} added to your play money.`);
+        }
+        setPortfolio(nextPortfolio);
+        setStreak(nextStreak);
+        setTodayKey(today);
       } catch {
         setPortfolio({ cash: STARTING_BALANCE, holdings: [] });
+        setStreak({ lastVisit: localDateKey(), current: 1, longest: 1, rewardedDates: [] });
+        setTodayKey(localDateKey());
       }
       setLoaded(true);
     }, 0);
@@ -68,7 +111,24 @@ export default function Home() {
     window.localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(portfolio));
     window.localStorage.setItem(SAVED_KEY, JSON.stringify(saved));
     window.localStorage.setItem(CLAIMED_KEY, JSON.stringify(claimedChallenges));
-  }, [portfolio, saved, claimedChallenges, loaded]);
+    window.localStorage.setItem(STREAK_KEY, JSON.stringify(streak));
+  }, [portfolio, saved, claimedChallenges, streak, loaded]);
+
+  useEffect(() => {
+    function updateCountdown() {
+      const now = new Date();
+      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      const minutes = Math.max(0, Math.floor((tomorrow.getTime() - now.getTime()) / 60000));
+      setTodayKey(localDateKey(now));
+      setDropCountdown(`${Math.floor(minutes / 60)}h ${minutes % 60}m`);
+    }
+    const initial = window.setTimeout(updateCountdown, 0);
+    const interval = window.setInterval(updateCountdown, 60000);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     if (!notice) return;
@@ -81,7 +141,8 @@ export default function Home() {
   const collectionMarket = portfolio.holdings.reduce((sum, holding) => sum + (WATCHES.find((watch) => watch.id === holding.watchId)?.market ?? 0), 0);
   const portfolioValue = portfolio.cash + collectionMarket;
   const claimedRewards = claimedChallenges.reduce((sum, id) => sum + (CHALLENGE_REWARDS[id] ?? 0), 0);
-  const portfolioGain = portfolioValue - STARTING_BALANCE - claimedRewards;
+  const streakRewards = streak.rewardedDates.length * STREAK_REWARD;
+  const portfolioGain = portfolioValue - STARTING_BALANCE - claimedRewards - streakRewards;
   const portfolioReturn = (portfolioGain / STARTING_BALANCE) * 100;
   const ownedWatches = useMemo(() => WATCHES.filter((watch) => owned.has(watch.id)), [owned]);
   const challenges = useMemo(() => {
@@ -96,9 +157,12 @@ export default function Home() {
       { id: "heavy-hitter", title: "Heavy Hitter", description: "Reach $25,000 in total collection value.", progress: collectionMarket, target: 25000, unit: "value", reward: 5000 },
     ];
   }, [collectionMarket, ownedWatches, portfolio.holdings.length]);
+  const dailyWatches = useMemo(() => dailySelection(todayKey || "wristlist"), [todayKey]);
+  const streakCycleDay = streak.current > 0 ? ((streak.current - 1) % 7) + 1 : 0;
+  const daysToReward = streakCycleDay === 7 ? 7 : 7 - streakCycleDay;
   const visibleWatches = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    const base = activeTab === "collection" ? WATCHES.filter((watch) => owned.has(watch.id)) : WATCHES;
+    const base = activeTab === "collection" ? WATCHES.filter((watch) => owned.has(watch.id)) : showAll ? WATCHES : dailyWatches;
     const filtered = base.filter((watch) => {
       const matchesCategory = category === "All watches" || watch.category === category;
       const searchable = `${watch.maker} ${watch.model} ${watch.reference} ${watch.category} ${watch.color}`.toLowerCase();
@@ -112,7 +176,7 @@ export default function Home() {
       if (sort === "performance") return (b.market - b.price) / b.price - (a.market - a.price) / a.price;
       return a.id - b.id;
     });
-  }, [activeTab, category, owned, query, sort]);
+  }, [activeTab, category, dailyWatches, owned, query, showAll, sort]);
 
   function acquire() {
     if (!selected || owned.has(selected.id) || selected.price > portfolio.cash) return;
@@ -156,7 +220,11 @@ export default function Home() {
           <button className={activeTab === "challenges" ? "active" : ""} onClick={() => setActiveTab("challenges")}>Challenges</button>
         </nav>
         <div className="header-actions">
-          <button className="icon-button" aria-label="Search watches" onClick={() => searchRef.current?.focus()}><Search /></button>
+          <button className="icon-button" aria-label="Search watches" onClick={() => {
+            setActiveTab("discover");
+            setShowAll(true);
+            window.setTimeout(() => searchRef.current?.focus(), 0);
+          }}><Search /></button>
           <div className="balance-pill"><span>PLAY MONEY</span><strong>{money.format(portfolio.cash)}</strong></div>
           <button className="avatar" aria-label="Profile">A</button>
         </div>
@@ -171,8 +239,8 @@ export default function Home() {
           </div>
           <aside className="streak-card">
             <span className="streak-icon"><Trophy /></span>
-            <div><strong>4 day streak</strong><span>Explore tomorrow to keep it alive</span></div>
-            <div className="streak-dots" aria-label="Four day activity streak"><i /><i /><i /><i /><i className="empty" /><i className="empty" /><i className="empty" /></div>
+            <div><strong>{streak.current} day streak</strong><span>{streakCycleDay === 7 ? "Reward earned. New cycle starts tomorrow" : `${daysToReward} ${daysToReward === 1 ? "day" : "days"} until ${money.format(STREAK_REWARD)}`}</span></div>
+            <div className="streak-dots" aria-label={`${streakCycleDay} of 7 days completed`}>{Array.from({ length: 7 }, (_, index) => <i key={index} className={index >= streakCycleDay ? "empty" : ""} />)}</div>
           </aside>
         </div>
 
@@ -210,6 +278,19 @@ export default function Home() {
         ) : (
           <>
         <div className="catalog-tools">
+          {activeTab === "discover" && (
+            <div className="drop-status">
+              <div>
+                <span><Sparkles /> {showAll ? "FULL CATALOG" : "TODAY’S SIX-WATCH DROP"}</span>
+                <small>{showAll ? `${WATCHES.length} watches available` : `New selection in ${dropCountdown || "--"}`}</small>
+              </div>
+              <button type="button" onClick={() => {
+                setShowAll((current) => !current);
+                setQuery("");
+                setCategory("All watches");
+              }}>{showAll ? "View today’s drop" : "Browse all watches"}</button>
+            </div>
+          )}
           <label className="catalog-search">
             <Search aria-hidden="true" />
             <input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search brand, model, or reference" aria-label="Search watches" />
@@ -230,7 +311,7 @@ export default function Home() {
               <ChevronDown aria-hidden="true" />
             </label>
           </div>
-          <p className="catalog-count">Showing {visibleWatches.length} of {activeTab === "collection" ? portfolio.holdings.length : WATCHES.length} watches</p>
+          <p className="catalog-count">Showing {visibleWatches.length} of {activeTab === "collection" ? portfolio.holdings.length : showAll ? WATCHES.length : 6} watches</p>
         </div>
 
         {visibleWatches.length > 0 ? (
