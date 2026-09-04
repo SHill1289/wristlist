@@ -83,6 +83,7 @@ export default function Home() {
   const [sort, setSort] = useState<SortOption>("curated");
   const [selected, setSelected] = useState<WatchListing | null>(null);
   const [selling, setSelling] = useState<WatchListing | null>(null);
+  const [acquiredReveal, setAcquiredReveal] = useState<WatchListing | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -177,6 +178,12 @@ export default function Home() {
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
+  useEffect(() => {
+    if (!acquiredReveal) return;
+    const timeout = window.setTimeout(() => setAcquiredReveal(null), 4400);
+    return () => window.clearTimeout(timeout);
+  }, [acquiredReveal]);
+
   const owned = useMemo(() => new Set(portfolio.holdings.map((holding) => holding.watchId)), [portfolio.holdings]);
   const collectionCost = portfolio.holdings.reduce((sum, holding) => sum + holding.purchasePrice, 0);
   const collectionMarket = portfolio.holdings.reduce((sum, holding) => sum + (WATCHES.find((watch) => watch.id === holding.watchId)?.market ?? 0), 0);
@@ -233,6 +240,7 @@ export default function Home() {
       holdings: [...current.holdings, { watchId: acquiredWatch.id, purchasePrice: acquiredWatch.price, acquiredAt: new Date().toISOString() }],
     }));
     setSelected(null);
+    setAcquiredReveal(acquiredWatch);
     setActiveTab("collection");
     setCategory("All watches");
     setNotice(`${acquiredWatch.maker} ${acquiredWatch.model} added to your collection.`);
@@ -469,6 +477,29 @@ export default function Home() {
           <DialogFooter><Button variant="outline" onClick={() => setSelling(null)}>Keep watch</Button><Button className="sell-confirm-button" onClick={sell}>Sell at market</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {acquiredReveal && (
+        <div className="acquisition-reveal" role="dialog" aria-modal="true" aria-label={`${acquiredReveal.maker} ${acquiredReveal.model} acquired`}>
+          <div className="acquisition-particles" aria-hidden="true">
+            {Array.from({ length: 24 }, (_, index) => <i key={index} style={{ left: `${4 + ((index * 37) % 92)}%`, animationDelay: `${(index % 8) * .09}s`, animationDuration: `${1.8 + (index % 5) * .18}s` }} />)}
+          </div>
+          <button type="button" className="reveal-close" onClick={() => setAcquiredReveal(null)} aria-label="Close acquisition reveal"><X /></button>
+          <div className="reveal-card">
+            <div className={`reveal-watch-image ${acquiredReveal.imageStyle === "cutout" ? "cutout-image" : ""}`}>
+              <span className="reveal-halo" aria-hidden="true" />
+              <img src={acquiredReveal.image} alt={`${acquiredReveal.maker} ${acquiredReveal.model} watch`} />
+            </div>
+            <div className="reveal-copy">
+              <span className="reveal-check"><Check /></span>
+              <p><Sparkles /> ACQUISITION COMPLETE</p>
+              <h2>{acquiredReveal.model}</h2>
+              <span>{acquiredReveal.maker} · {acquiredReveal.reference}</span>
+              <strong>{money.format(acquiredReveal.price)}</strong>
+              <button type="button" onClick={() => setAcquiredReveal(null)}>View in my collection</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Dialog open={preferencesOpen} onOpenChange={(open) => {
         if (!open && !preferences.completed) return;

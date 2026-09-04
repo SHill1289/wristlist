@@ -167,6 +167,34 @@ h1 { max-width: 680px; margin: 0; color: #183d33; font-family: Georgia, "Times N
 .share-dialog [data-slot="dialog-footer"] button { border-radius: 100px !important; }
 .share-dialog [data-slot="dialog-footer"] svg { width: 15px; }
 .copy-link-button { background: #193f34 !important; color: #fff !important; }
+.acquisition-reveal { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 1.25rem; overflow: hidden; background: rgba(9,16,13,.86); backdrop-filter: blur(12px); animation: reveal-backdrop-in .35s ease both; }
+.reveal-close { position: absolute; z-index: 4; top: 1.25rem; right: 1.25rem; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; background: rgba(255,255,255,.08); color: #fff; cursor: pointer; }
+.reveal-close svg { width: 18px; }
+.acquisition-particles { position: absolute; inset: -15% 0 0; overflow: hidden; pointer-events: none; }
+.acquisition-particles i { position: absolute; top: 0; width: 5px; height: 13px; border-radius: 2px; background: linear-gradient(180deg, #fff2b4, #ba872b); box-shadow: 0 0 12px rgba(239,211,127,.45); opacity: 0; animation-name: acquisition-particle-fall; animation-timing-function: cubic-bezier(.2,.65,.35,1); animation-fill-mode: both; }
+.acquisition-particles i:nth-child(3n) { width: 7px; height: 7px; border-radius: 50%; }
+.acquisition-particles i:nth-child(even) { background: linear-gradient(180deg, #f9e6a4, #7f5a19); }
+.reveal-card { position: relative; z-index: 2; width: min(760px, 100%); display: grid; grid-template-columns: 1.08fr .92fr; overflow: hidden; border: 1px solid rgba(235,213,148,.35); border-radius: 22px; background: #f6f4ed; box-shadow: 0 35px 100px rgba(0,0,0,.48), 0 0 70px rgba(219,186,91,.12); animation: reveal-card-in .7s cubic-bezier(.18,.8,.22,1) both; }
+.reveal-watch-image { position: relative; min-height: 470px; overflow: hidden; background: #080b09; }
+.reveal-watch-image img { position: relative; z-index: 1; width: 100%; height: 100%; display: block; object-fit: cover; animation: reveal-watch-in 1.05s cubic-bezier(.16,.8,.25,1) .12s both; }
+.reveal-watch-image.cutout-image { background: linear-gradient(145deg, #f7f6f2, #e9e7e1); }
+.reveal-watch-image.cutout-image img { object-fit: contain; padding: 1.4rem; }
+.reveal-halo { position: absolute; z-index: 2; inset: 15%; border: 1px solid rgba(238,211,132,.22); border-radius: 50%; box-shadow: 0 0 60px rgba(236,205,113,.22), inset 0 0 50px rgba(236,205,113,.1); animation: reveal-halo 1.7s ease-out .2s both; pointer-events: none; }
+.reveal-copy { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: clamp(2rem, 5vw, 3.4rem); animation: reveal-copy-in .65s ease .35s both; }
+.reveal-check { width: 42px; height: 42px; display: grid; place-items: center; margin-bottom: 1.3rem; border-radius: 50%; background: #193f34; color: #efd88c; }
+.reveal-check svg { width: 20px; }
+.reveal-copy > p { display: flex; align-items: center; gap: .4rem; margin: 0 0 .7rem; color: #8a6c24; font-size: .66rem; font-weight: 800; letter-spacing: .13em; }
+.reveal-copy > p svg { width: 14px; }
+.reveal-copy h2 { margin: 0; color: #193f34; font-family: Georgia, serif; font-size: clamp(2.1rem, 5vw, 3.2rem); font-weight: 500; line-height: .98; letter-spacing: -.035em; }
+.reveal-copy > span:not(.reveal-check) { margin-top: .7rem; color: #777b77; font-size: .73rem; text-transform: uppercase; letter-spacing: .08em; }
+.reveal-copy > strong { margin-top: 1.25rem; color: #202421; font-family: Georgia, serif; font-size: 1.35rem; }
+.reveal-copy > button { margin-top: 1.7rem; border: 0; border-radius: 100px; background: #193f34; color: #fff; padding: .72rem 1rem; font-size: .75rem; font-weight: 800; cursor: pointer; }
+@keyframes reveal-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes reveal-card-in { from { opacity: 0; transform: translateY(28px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes reveal-watch-in { from { opacity: .25; transform: scale(1.12); filter: brightness(.55); } to { opacity: 1; transform: scale(1); filter: brightness(1); } }
+@keyframes reveal-copy-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes reveal-halo { from { opacity: 0; transform: scale(.5); } 45% { opacity: 1; } to { opacity: .45; transform: scale(1.18); } }
+@keyframes acquisition-particle-fall { 0% { opacity: 0; transform: translate3d(0,-8vh,0) rotate(0); } 15% { opacity: .9; } 100% { opacity: 0; transform: translate3d(22px,105vh,0) rotate(420deg); } }
 .portfolio-notice { position: fixed; z-index: 60; right: 1.5rem; bottom: 1.5rem; max-width: min(420px, calc(100% - 3rem)); display: flex; align-items: center; gap: .7rem; padding: .9rem 1rem; border: 1px solid #416b5e; border-radius: 13px; background: #193f34; color: #fff; box-shadow: 0 18px 50px rgba(20,48,40,.28); animation: notice-in .28s ease-out; }
 .portfolio-notice svg { width: 19px; flex: 0 0 auto; color: #efd98e; }
 .portfolio-notice span { font-size: .8rem; font-weight: 700; }
@@ -265,9 +293,12 @@ h1 { max-width: 680px; margin: 0; color: #183d33; font-family: Georgia, "Times N
   .shared-topbar .brand span:last-child { display: none; } .shared-build-link { padding: .55rem .8rem; font-size: .67rem; }
   .shared-metrics { grid-template-columns: 1fr; } .shared-metrics > div + div { border-left: 0; border-top: 1px solid var(--border); }
   .shared-cta { align-items: flex-start; flex-direction: column; } .shared-cta a { width: 100%; text-align: center; }
+  .reveal-card { width: min(390px, 100%); grid-template-columns: 1fr; } .reveal-watch-image { min-height: 0; aspect-ratio: 1.15; }
+  .reveal-copy { align-items: center; padding: 1.5rem 1.4rem 1.7rem; text-align: center; } .reveal-check { width: 36px; height: 36px; margin-bottom: .85rem; }
+  .reveal-copy h2 { font-size: 2.15rem; } .reveal-copy > strong { margin-top: .8rem; } .reveal-copy > button { width: 100%; margin-top: 1rem; }
 }
 
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } .acquisition-particles { display: none; } }
 
 .credits-page { width: min(760px, calc(100% - 2.5rem)); margin: 0 auto; padding: clamp(3rem, 8vw, 7rem) 0; }
 .credits-back { display: inline-block; margin-bottom: 4rem; color: #193f34; font-size: .82rem; font-weight: 700; text-decoration: none; }
