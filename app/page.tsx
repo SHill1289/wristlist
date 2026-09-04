@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, Check, CheckCircle2, ChevronDown, CircleCheck, Compass, Copy, Gem, Gift, Heart, Search, Share2, SlidersHorizontal, Sparkles, Target, Trophy, WalletCards, Watch, X } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
+import { ArrowDownRight, ArrowUpRight, Check, CheckCircle2, ChevronDown, CircleCheck, Cloud, CloudOff, Compass, Copy, Gem, Gift, Heart, LogIn, LogOut, Search, Share2, SlidersHorizontal, Sparkles, Target, Trophy, WalletCards, Watch, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WATCHES, type WatchListing } from "@/data/watches";
+import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 type Holding = { watchId: number; purchasePrice: number; acquiredAt: string };
 type Portfolio = { cash: number; holdings: Holding[] };
 type SortOption = "curated" | "price-low" | "price-high" | "market-high" | "performance";
@@ -13,6 +15,7 @@ type AppTab = "discover" | "saved" | "collection" | "challenges";
 type StreakState = { lastVisit: string; current: number; longest: number; rewardedDates: string[] };
 type BudgetPreference = "any" | "under-1000" | "1000-5000" | "5000-15000" | "15000-plus";
 type Preferences = { styles: WatchListing["category"][]; budget: BudgetPreference; brands: string[]; completed: boolean };
+type CloudAppState = { portfolio: Portfolio; saved: number[]; claimedChallenges: string[]; streak: StreakState; preferences: Preferences };
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const STARTING_BALANCE = 50000;
@@ -74,6 +77,12 @@ export default function Home() {
   const [shareOpen, setShareOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
   const [shareCopied, setShareCopied] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [cloudReady, setCloudReady] = useState(false);
+  const [cloudSaving, setCloudSaving] = useState(false);
+  const [cloudError, setCloudError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AppTab>("discover");
   const [showAll, setShowAll] = useState(false);
   const [todayKey, setTodayKey] = useState("");
@@ -87,6 +96,9 @@ export default function Home() {
   const [notice, setNotice] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const cloudHydratedUserRef = useRef<string | null>(null);
+  const supabaseConfigured = isSupabaseConfigured();
+  const cloudState = useMemo<CloudAppState>(() => ({ portfolio, saved, claimedChallenges, streak, preferences }), [claimedChallenges, portfolio, preferences, saved, streak]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -155,6 +167,104 @@ export default function Home() {
     window.localStorage.setItem(STREAK_KEY, JSON.stringify(streak));
     if (preferences.completed) window.localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences));
   }, [portfolio, saved, claimedChallenges, streak, preferences, loaded]);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      const timeout = window.setTimeout(() => setAuthReady(true), 0);
+      return () => window.clearTimeout(timeout);
+    }
+
+    let active = true;
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (!active) return;
+      setAuthUser(data.session?.user ?? null);
+      setCloudError(error?.message ?? null);
+      setAuthReady(true);
+    });
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!active) return;
+      setAuthUser(session?.user ?? null);
+      setAuthReady(true);
+      if (!session?.user) {
+        cloudHydratedUserRef.current = null;
+        setCloudReady(false);
+      }
+    });
+
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!loaded || !authUser || cloudHydratedUserRef.current === authUser.id) return;
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+    const supabaseClient = supabase;
+    const userId = authUser.id;
+    cloudHydratedUserRef.current = userId;
+    let cancelled = false;
+
+    async function hydrateCloudState() {
+      await Promise.resolve();
+      if (cancelled) return;
+      setCloudSaving(true);
+      setCloudError(null);
+      const { data, error } = await supabaseClient.from("user_states").select("state").eq("user_id", userId).maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        cloudHydratedUserRef.current = null;
+        setCloudError(error.message);
+        setCloudSaving(false);
+        return;
+      }
+
+      const remoteState = data?.state as Partial<CloudAppState> | undefined;
+      if (remoteState) {
+        if (remoteState.portfolio && typeof remoteState.portfolio.cash === "number" && Array.isArray(remoteState.portfolio.holdings)) setPortfolio(remoteState.portfolio);
+        if (Array.isArray(remoteState.saved)) setSaved(remoteState.saved);
+        if (Array.isArray(remoteState.claimedChallenges)) setClaimedChallenges(remoteState.claimedChallenges);
+        if (remoteState.streak && typeof remoteState.streak.current === "number") setStreak(remoteState.streak);
+        if (remoteState.preferences && Array.isArray(remoteState.preferences.styles)) {
+          setPreferences(remoteState.preferences);
+          setDraftPreferences(remoteState.preferences);
+          setPreferencesOpen(false);
+        }
+      } else {
+        const { error: insertError } = await supabaseClient.from("user_states").insert({ user_id: userId, state: cloudState });
+        if (cancelled) return;
+        if (insertError) {
+          cloudHydratedUserRef.current = null;
+          setCloudError(insertError.message);
+          setCloudSaving(false);
+          return;
+        }
+        setNotice("Your browser collection is now backed up to your account.");
+      }
+      setCloudReady(true);
+      setCloudSaving(false);
+    }
+
+    void hydrateCloudState();
+    return () => { cancelled = true; };
+  }, [authUser, cloudState, loaded]);
+
+  useEffect(() => {
+    if (!loaded || !authUser || !cloudReady) return;
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+    const supabaseClient = supabase;
+    const userId = authUser.id;
+    const timeout = window.setTimeout(async () => {
+      setCloudSaving(true);
+      const { error } = await supabaseClient.from("user_states").upsert({ user_id: userId, state: cloudState, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+      setCloudError(error?.message ?? null);
+      setCloudSaving(false);
+    }, 800);
+    return () => window.clearTimeout(timeout);
+  }, [authUser, cloudReady, cloudState, loaded]);
 
   useEffect(() => {
     function updateCountdown() {
@@ -304,6 +414,30 @@ export default function Home() {
     await window.navigator.share({ title: "My Wristlist collection", text: "Take a look at this virtual watch collection.", url: shareUrl });
   }
 
+  async function signInWithGoogle() {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+    setCloudError(null);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) setCloudError(error.message);
+  }
+
+  async function signOut() {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+    setCloudError(null);
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      setCloudError(error.message);
+      return;
+    }
+    [PORTFOLIO_KEY, SAVED_KEY, CLAIMED_KEY, STREAK_KEY, PREFERENCES_KEY, "wristlist-owned"].forEach((key) => window.localStorage.removeItem(key));
+    window.location.reload();
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -321,7 +455,7 @@ export default function Home() {
             window.setTimeout(() => searchRef.current?.focus(), 0);
           }}><Search /></button>
           <div className="balance-pill"><span>PLAY MONEY</span><strong>{money.format(portfolio.cash)}</strong></div>
-          <button className="avatar" aria-label="Open watch preferences" onClick={() => { setDraftPreferences(preferences); setPreferencesOpen(true); }}>A</button>
+          <button className={`avatar ${authUser && cloudReady ? "cloud-connected" : ""}`} aria-label="Open account" onClick={() => setAccountOpen(true)}>{authUser?.email?.charAt(0).toUpperCase() ?? "A"}<i aria-hidden="true" /></button>
         </div>
       </header>
 
@@ -387,6 +521,7 @@ export default function Home() {
                   setCategory("All watches");
                 }}>{showAll ? "View today’s drop" : "Browse all watches"}</button>
                 <button type="button" onClick={() => { setDraftPreferences(preferences); setPreferencesOpen(true); }}>Tune my drop</button>
+                <button type="button" onClick={() => setAccountOpen(true)}>{authUser ? "Account" : "Cloud sync"}</button>
               </div>
             </div>
           )}
@@ -569,6 +704,54 @@ export default function Home() {
             {typeof navigator !== "undefined" && typeof navigator.share === "function" && <Button variant="outline" onClick={openNativeShare}><Share2 /> Share</Button>}
             <Button className="copy-link-button" onClick={copyShareLink}>{shareCopied ? <><Check /> Copied</> : <><Copy /> Copy link</>}</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
+        <DialogContent className="account-dialog">
+          {!supabaseConfigured ? (
+            <>
+              <DialogHeader>
+                <p className="eyebrow"><CloudOff /> LOCAL MODE</p>
+                <DialogTitle>Cloud sync is ready to connect.</DialogTitle>
+                <DialogDescription>Wristlist is still saving to this browser. Add your personal Supabase environment variables in Vercel to activate accounts without interrupting the current app.</DialogDescription>
+              </DialogHeader>
+              <div className="account-status local"><CloudOff /><div><strong>Saved on this device</strong><span>Supabase configuration required</span></div></div>
+              <DialogFooter><Button variant="outline" onClick={() => setAccountOpen(false)}>Keep using local mode</Button></DialogFooter>
+            </>
+          ) : !authReady ? (
+            <>
+              <DialogHeader><p className="eyebrow"><Cloud /> ACCOUNT</p><DialogTitle>Checking your account…</DialogTitle><DialogDescription>This should only take a moment.</DialogDescription></DialogHeader>
+            </>
+          ) : authUser ? (
+            <>
+              <DialogHeader>
+                <p className="eyebrow"><Cloud /> CLOUD ACCOUNT</p>
+                <DialogTitle>Your watch box goes with you.</DialogTitle>
+                <DialogDescription>Your collection, saved watches, preferences, streak, and rewards are linked to your Google account.</DialogDescription>
+              </DialogHeader>
+              <div className={`account-status ${cloudError ? "error" : "synced"}`}>
+                {cloudError ? <CloudOff /> : <Cloud />}
+                <div><strong>{cloudError ? "Sync needs attention" : cloudSaving ? "Saving changes…" : cloudReady ? "Collection synced" : "Loading cloud collection…"}</strong><span>{authUser.email}</span></div>
+              </div>
+              {cloudError && <p className="account-error">{cloudError}</p>}
+              <button type="button" className="account-preferences-link" onClick={() => { setAccountOpen(false); setDraftPreferences(preferences); setPreferencesOpen(true); }}><SlidersHorizontal /> Edit watch preferences</button>
+              <p className="signout-note">Signing out removes this account’s data from the current browser after it has been saved to the cloud.</p>
+              <DialogFooter><Button variant="outline" onClick={signOut}><LogOut /> Sign out</Button><Button className="account-done-button" onClick={() => setAccountOpen(false)}>Done</Button></DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <p className="eyebrow"><Cloud /> OPTIONAL CLOUD SYNC</p>
+                <DialogTitle>Keep your watch box with you.</DialogTitle>
+                <DialogDescription>Sign in to back up this browser’s collection and open it on another device. Your current progress will migrate automatically.</DialogDescription>
+              </DialogHeader>
+              <div className="account-status local"><CloudOff /><div><strong>Currently saved on this device</strong><span>Sign in to enable cloud backup</span></div></div>
+              {cloudError && <p className="account-error">{cloudError}</p>}
+              <p className="account-privacy">Wristlist receives your email address and Google account identifier for authentication. It does not receive your Google password.</p>
+              <DialogFooter><Button variant="outline" onClick={() => setAccountOpen(false)}>Not now</Button><Button className="google-signin-button" onClick={signInWithGoogle}><LogIn /> Continue with Google</Button></DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

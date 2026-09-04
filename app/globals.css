@@ -43,8 +43,10 @@ button { font: inherit; }
 .balance-pill { display: flex; align-items: center; gap: .7rem; padding: .54rem .85rem; border: 1px solid #d2d4ce; border-radius: 100px; background: rgba(255,255,255,.7); }
 .balance-pill span { color: #777b76; font-size: .64rem; font-weight: 800; letter-spacing: .1em; }
 .balance-pill strong { color: #193f34; font-size: .9rem; }
-.avatar { width: 36px; height: 36px; border-radius: 50%; background: #1d211f; color: #fff; font-weight: 700; }
+.avatar { position: relative; width: 36px; height: 36px; border-radius: 50%; background: #1d211f; color: #fff; font-weight: 700; }
 .avatar:hover { background: #31594d; }
+.avatar i { position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border: 2px solid var(--background); border-radius: 50%; background: #8b8f89; }
+.avatar.cloud-connected i { background: #65c99a; }
 .dashboard { width: min(1180px, calc(100% - 2.5rem)); margin: 0 auto; padding: 3.8rem 0; }
 .welcome-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 2rem; }
 .eyebrow { display: flex; align-items: center; gap: .45rem; margin: 0 0 1rem; color: #8a6c24; font-size: .72rem; font-weight: 800; letter-spacing: .16em; }
@@ -78,7 +80,7 @@ h1 { max-width: 680px; margin: 0; color: #183d33; font-family: Georgia, "Times N
 .drop-status span { display: flex; align-items: center; gap: .4rem; color: #8a6c24; font-size: .64rem; font-weight: 800; letter-spacing: .11em; }
 .drop-status span svg { width: 14px; }
 .drop-status small { color: #838782; font-size: .7rem; }
-.drop-actions { display: flex; align-items: center; gap: 1rem; }
+.drop-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .5rem 1rem; }
 .drop-actions button { border: 0; background: transparent; color: #193f34; font-size: .75rem; font-weight: 800; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .catalog-search { width: 100%; height: 48px; display: flex; align-items: center; gap: .7rem; margin-bottom: 1rem; padding: 0 .95rem; border: 1px solid var(--border); border-radius: 13px; background: rgba(255,255,255,.72); transition: border-color .2s ease, box-shadow .2s ease; }
 .catalog-search:focus-within { border-color: #52796c; box-shadow: 0 0 0 3px rgba(82,121,108,.12); }
@@ -167,6 +169,22 @@ h1 { max-width: 680px; margin: 0; color: #183d33; font-family: Georgia, "Times N
 .share-dialog [data-slot="dialog-footer"] button { border-radius: 100px !important; }
 .share-dialog [data-slot="dialog-footer"] svg { width: 15px; }
 .copy-link-button { background: #193f34 !important; color: #fff !important; }
+.account-dialog { border: 1px solid #d6d8d1 !important; border-radius: 18px !important; background: #f8f7f3 !important; padding: 1.6rem !important; }
+.account-dialog [data-slot="dialog-title"] { color: #193f34; font-family: Georgia, serif; font-size: 1.75rem; font-weight: 500; line-height: 1.1; }
+.account-dialog [data-slot="dialog-footer"] button { border-radius: 100px !important; }
+.account-dialog [data-slot="dialog-footer"] svg { width: 15px; }
+.account-status { display: flex; align-items: center; gap: .8rem; padding: 1rem; border: 1px solid #c9d9d1; border-radius: 12px; background: #e8f1ec; color: #2d765c; }
+.account-status.local { border-color: #d9dad4; background: #ecece6; color: #777b77; }
+.account-status.error { border-color: #e2bdb8; background: #f8e9e7; color: #a0443c; }
+.account-status > svg { width: 21px; flex: 0 0 auto; }
+.account-status > div { display: flex; min-width: 0; flex-direction: column; gap: .2rem; }
+.account-status strong { color: #193f34; font-size: .8rem; }
+.account-status span { overflow: hidden; color: #777b77; font-size: .7rem; text-overflow: ellipsis; white-space: nowrap; }
+.account-error { margin: -.25rem 0 0; color: #a0443c; font-size: .7rem; line-height: 1.45; }
+.account-privacy, .signout-note { margin: 0; color: #858985; font-size: .68rem; line-height: 1.5; }
+.account-preferences-link { display: inline-flex; align-items: center; gap: .45rem; width: fit-content; border: 0; background: transparent; color: #193f34; padding: 0; font-size: .75rem; font-weight: 800; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.account-preferences-link svg { width: 15px; }
+.google-signin-button, .account-done-button { background: #193f34 !important; color: #fff !important; }
 .acquisition-reveal { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 1.25rem; overflow: hidden; background: rgba(9,16,13,.86); backdrop-filter: blur(12px); animation: reveal-backdrop-in .35s ease both; }
 .reveal-close { position: absolute; z-index: 4; top: 1.25rem; right: 1.25rem; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; background: rgba(255,255,255,.08); color: #fff; cursor: pointer; }
 .reveal-close svg { width: 18px; }
