@@ -35,6 +35,7 @@ button { font: inherit; }
 .desktop-nav button { position: relative; border: 0; background: transparent; color: #70736e; font-size: .9rem; cursor: pointer; }
 .desktop-nav button.active { color: #193f34; font-weight: 700; }
 .desktop-nav button.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: #193f34; border-radius: 3px 3px 0 0; }
+.nav-count { display: inline-grid; min-width: 18px; height: 18px; margin-left: .25rem; padding: 0 .3rem; place-items: center; border-radius: 100px; background: #e1e6e1; color: #193f34; font-size: .62rem; font-weight: 800; }
 .header-actions { justify-self: end; display: flex; align-items: center; gap: .85rem; }
 .icon-button, .avatar, .save-button { border: 0; cursor: pointer; }
 .icon-button { display: grid; place-items: center; width: 40px; height: 40px; background: transparent; color: #555a55; }
@@ -185,7 +186,7 @@ h1 { max-width: 680px; margin: 0; color: #183d33; font-family: Georgia, "Times N
   .metrics { grid-template-columns: 1fr; } .metrics > div + div { border-left: 0; border-top: 1px solid var(--border); }
   .challenge-summary { align-items: flex-start; flex-direction: column; gap: 1rem; } .challenge-grid { grid-template-columns: 1fr; }
   .watch-grid { grid-template-columns: 1fr; } .watch-image-wrap { aspect-ratio: 1.2; }
-  .mobile-nav { position: fixed; z-index: 30; left: 50%; bottom: .85rem; transform: translateX(-50%); width: min(calc(100% - 1.5rem), 420px); display: grid; grid-template-columns: repeat(3, 1fr); padding: .45rem; border: 1px solid #45655b; border-radius: 18px; background: rgba(25,63,52,.96); box-shadow: 0 16px 42px rgba(17,37,31,.24); backdrop-filter: blur(12px); }
+  .mobile-nav { position: fixed; z-index: 30; left: 50%; bottom: .85rem; transform: translateX(-50%); width: min(calc(100% - 1.5rem), 480px); display: grid; grid-template-columns: repeat(4, 1fr); padding: .45rem; border: 1px solid #45655b; border-radius: 18px; background: rgba(25,63,52,.96); box-shadow: 0 16px 42px rgba(17,37,31,.24); backdrop-filter: blur(12px); }
   .mobile-nav button { display: flex; flex-direction: column; align-items: center; gap: .25rem; border: 0; border-radius: 12px; background: transparent; color: #b9c9c3; padding: .45rem; font-size: .63rem; }
   .mobile-nav button.active { background: #31594d; color: #f3d992; } .mobile-nav svg { width: 17px; }
   .portfolio-notice { right: 1rem; bottom: 6.2rem; max-width: calc(100% - 2rem); }

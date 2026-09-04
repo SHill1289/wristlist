@@ -9,7 +9,7 @@ import { WATCHES, type WatchListing } from "@/data/watches";
 type Holding = { watchId: number; purchasePrice: number; acquiredAt: string };
 type Portfolio = { cash: number; holdings: Holding[] };
 type SortOption = "curated" | "price-low" | "price-high" | "market-high" | "performance";
-type AppTab = "discover" | "collection" | "challenges";
+type AppTab = "discover" | "saved" | "collection" | "challenges";
 type StreakState = { lastVisit: string; current: number; longest: number; rewardedDates: string[] };
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -162,7 +162,13 @@ export default function Home() {
   const daysToReward = streakCycleDay === 7 ? 7 : 7 - streakCycleDay;
   const visibleWatches = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    const base = activeTab === "collection" ? WATCHES.filter((watch) => owned.has(watch.id)) : showAll ? WATCHES : dailyWatches;
+    const base = activeTab === "collection"
+      ? WATCHES.filter((watch) => owned.has(watch.id))
+      : activeTab === "saved"
+        ? WATCHES.filter((watch) => saved.includes(watch.id))
+        : showAll
+          ? WATCHES
+          : dailyWatches;
     const filtered = base.filter((watch) => {
       const matchesCategory = category === "All watches" || watch.category === category;
       const searchable = `${watch.maker} ${watch.model} ${watch.reference} ${watch.category} ${watch.color}`.toLowerCase();
@@ -176,7 +182,7 @@ export default function Home() {
       if (sort === "performance") return (b.market - b.price) / b.price - (a.market - a.price) / a.price;
       return a.id - b.id;
     });
-  }, [activeTab, category, dailyWatches, owned, query, showAll, sort]);
+  }, [activeTab, category, dailyWatches, owned, query, saved, showAll, sort]);
 
   function acquire() {
     if (!selected || owned.has(selected.id) || selected.price > portfolio.cash) return;
@@ -216,6 +222,7 @@ export default function Home() {
         <a className="brand" href="#" aria-label="Wristlist home"><span className="brand-mark"><Watch /></span><span>WRISTLIST</span></a>
         <nav className="desktop-nav" aria-label="Primary navigation">
           <button className={activeTab === "discover" ? "active" : ""} onClick={() => setActiveTab("discover")}>Discover</button>
+          <button className={activeTab === "saved" ? "active" : ""} onClick={() => setActiveTab("saved")}>Saved <span className="nav-count">{saved.length}</span></button>
           <button className={activeTab === "collection" ? "active" : ""} onClick={() => setActiveTab("collection")}>My collection</button>
           <button className={activeTab === "challenges" ? "active" : ""} onClick={() => setActiveTab("challenges")}>Challenges</button>
         </nav>
@@ -233,9 +240,9 @@ export default function Home() {
       <section className="dashboard">
         <div className="welcome-row">
           <div>
-            <p className="eyebrow"><Sparkles /> {activeTab === "challenges" ? "COLLECTOR CHALLENGES" : "TODAY’S DROP"}</p>
-            <h1>{activeTab === "discover" ? "Find your next watch." : activeTab === "collection" ? "Your watch box." : "Put your collection to work."}</h1>
-            <p className="intro">{activeTab === "discover" ? "Build the collection you want. Your wallet stays untouched." : activeTab === "collection" ? `${portfolio.holdings.length} ${portfolio.holdings.length === 1 ? "watch" : "watches"} acquired with zero buyer’s remorse.` : "Complete collection goals and earn more play money for your next acquisition."}</p>
+            <p className="eyebrow"><Sparkles /> {activeTab === "challenges" ? "COLLECTOR CHALLENGES" : activeTab === "saved" ? "YOUR SHORTLIST" : activeTab === "collection" ? "YOUR COLLECTION" : "TODAY’S DROP"}</p>
+            <h1>{activeTab === "discover" ? "Find your next watch." : activeTab === "saved" ? "Worth another look." : activeTab === "collection" ? "Your watch box." : "Put your collection to work."}</h1>
+            <p className="intro">{activeTab === "discover" ? "Build the collection you want. Your wallet stays untouched." : activeTab === "saved" ? `${saved.length} ${saved.length === 1 ? "watch" : "watches"} saved for later consideration.` : activeTab === "collection" ? `${portfolio.holdings.length} ${portfolio.holdings.length === 1 ? "watch" : "watches"} acquired with zero buyer’s remorse.` : "Complete collection goals and earn more play money for your next acquisition."}</p>
           </div>
           <aside className="streak-card">
             <span className="streak-icon"><Trophy /></span>
@@ -311,7 +318,7 @@ export default function Home() {
               <ChevronDown aria-hidden="true" />
             </label>
           </div>
-          <p className="catalog-count">Showing {visibleWatches.length} of {activeTab === "collection" ? portfolio.holdings.length : showAll ? WATCHES.length : 6} watches</p>
+          <p className="catalog-count">Showing {visibleWatches.length} of {activeTab === "collection" ? portfolio.holdings.length : activeTab === "saved" ? saved.length : showAll ? WATCHES.length : 6} watches</p>
         </div>
 
         {visibleWatches.length > 0 ? (
@@ -341,7 +348,7 @@ export default function Home() {
             })}
           </div>
         ) : (
-          <div className="empty-state"><span><Compass /></span><h2>{query || category !== "All watches" ? "No watches match." : "Your watch box is waiting."}</h2><p>{query || category !== "All watches" ? "Try another search or clear your filters." : "Explore today’s drop and virtually acquire your first piece."}</p>{query || category !== "All watches" ? <Button onClick={() => { setQuery(""); setCategory("All watches"); }}>Clear filters</Button> : <Button onClick={() => setActiveTab("discover")}>Browse watches</Button>}</div>
+          <div className="empty-state"><span>{activeTab === "saved" ? <Heart /> : <Compass />}</span><h2>{query || category !== "All watches" ? "No watches match." : activeTab === "saved" ? "Nothing saved yet." : "Your watch box is waiting."}</h2><p>{query || category !== "All watches" ? "Try another search or clear your filters." : activeTab === "saved" ? "Tap the heart on any watch you want to revisit." : "Explore today’s drop and virtually acquire your first piece."}</p>{query || category !== "All watches" ? <Button onClick={() => { setQuery(""); setCategory("All watches"); }}>Clear filters</Button> : <Button onClick={() => setActiveTab("discover")}>Browse watches</Button>}</div>
         )}
           </>
         )}
@@ -354,6 +361,7 @@ export default function Home() {
 
       <nav className="mobile-nav" aria-label="Mobile navigation">
         <button className={activeTab === "discover" ? "active" : ""} onClick={() => setActiveTab("discover")}><Compass />Discover</button>
+        <button className={activeTab === "saved" ? "active" : ""} onClick={() => setActiveTab("saved")}><Heart />Saved</button>
         <button className={activeTab === "collection" ? "active" : ""} onClick={() => setActiveTab("collection")}><Watch />Collection</button>
         <button className={activeTab === "challenges" ? "active" : ""} onClick={() => setActiveTab("challenges")}><Trophy />Challenges</button>
       </nav>
