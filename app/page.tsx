@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, CheckCircle2, ChevronDown, Compass, Gem, Heart, Search, Sparkles, Trophy, WalletCards, Watch, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -188,11 +189,11 @@ export default function Home() {
                   <div className={`watch-image-wrap ${watch.imageStyle === "cutout" ? "cutout-image" : ""}`}>
                     <span className="card-tag">{watch.note}</span>
                     <button className={`save-button ${isSaved ? "saved" : ""}`} onClick={() => setSaved((current) => isSaved ? current.filter((id) => id !== watch.id) : [...current, watch.id])} aria-label={isSaved ? `Remove ${watch.model} from saved watches` : `Save ${watch.model}`}><Heart fill={isSaved ? "currentColor" : "none"} /></button>
-                    <img src={watch.image} alt={`${watch.maker} ${watch.model} watch`} />
+                    <Link className="watch-image-link" href={`/watches/${watch.id}`} aria-label={`View ${watch.maker} ${watch.model} details`}><img src={watch.image} alt={`${watch.maker} ${watch.model} watch`} /></Link>
                   </div>
                   <div className="watch-info">
                     <div className="maker-row"><span>{watch.maker}</span><small>{watch.reference}</small></div>
-                    <h2>{watch.model}</h2><p>{watch.color}</p>
+                    <h2><Link href={`/watches/${watch.id}`}>{watch.model}</Link></h2><p>{watch.color}</p>
                     <div className="price-row">
                       <div><strong>{money.format(isOwned ? watch.market : watch.price)}</strong><small>{isOwned ? `Paid ${money.format(holding?.purchasePrice ?? watch.price)} · ${watchGain >= 0 ? "+" : ""}${money.format(watchGain)}` : `Market ${money.format(watch.market)}`}</small></div>
                       <Button className={isOwned ? "sell-button" : "acquire-button"} onClick={() => isOwned ? setSelling(watch) : setSelected(watch)} disabled={!isOwned && watch.price > portfolio.cash}>{isOwned ? "Sell" : "Acquire"}</Button>
