@@ -2,23 +2,27 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, CheckCircle2, ChevronDown, Compass, Gem, Heart, Search, Sparkles, Trophy, WalletCards, Watch, X } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CheckCircle2, ChevronDown, CircleCheck, Compass, Gem, Gift, Heart, Search, Sparkles, Target, Trophy, WalletCards, Watch, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WATCHES, type WatchListing } from "@/data/watches";
 type Holding = { watchId: number; purchasePrice: number; acquiredAt: string };
 type Portfolio = { cash: number; holdings: Holding[] };
 type SortOption = "curated" | "price-low" | "price-high" | "market-high" | "performance";
+type AppTab = "discover" | "collection" | "challenges";
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const STARTING_BALANCE = 50000;
 const PORTFOLIO_KEY = "wristlist-portfolio-v1";
 const SAVED_KEY = "wristlist-saved-v1";
+const CLAIMED_KEY = "wristlist-claimed-challenges-v1";
+const CHALLENGE_REWARDS: Record<string, number> = { "first-three": 2000, "well-rounded": 3000, "dive-team": 2500, "brand-explorer": 4000, "heavy-hitter": 5000 };
 
 export default function Home() {
   const [portfolio, setPortfolio] = useState<Portfolio>({ cash: STARTING_BALANCE, holdings: [] });
   const [saved, setSaved] = useState<number[]>([2]);
-  const [activeTab, setActiveTab] = useState<"discover" | "collection">("discover");
+  const [claimedChallenges, setClaimedChallenges] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<AppTab>("discover");
   const [category, setCategory] = useState("All watches");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortOption>("curated");
@@ -33,6 +37,7 @@ export default function Home() {
       try {
         const storedPortfolio = window.localStorage.getItem(PORTFOLIO_KEY);
         const storedSaved = window.localStorage.getItem(SAVED_KEY);
+        const storedClaims = window.localStorage.getItem(CLAIMED_KEY);
 
         if (storedPortfolio) {
           const parsed = JSON.parse(storedPortfolio) as Portfolio;
@@ -49,6 +54,7 @@ export default function Home() {
         }
 
         if (storedSaved) setSaved(JSON.parse(storedSaved));
+        if (storedClaims) setClaimedChallenges(JSON.parse(storedClaims));
       } catch {
         setPortfolio({ cash: STARTING_BALANCE, holdings: [] });
       }
@@ -61,7 +67,8 @@ export default function Home() {
     if (!loaded) return;
     window.localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(portfolio));
     window.localStorage.setItem(SAVED_KEY, JSON.stringify(saved));
-  }, [portfolio, saved, loaded]);
+    window.localStorage.setItem(CLAIMED_KEY, JSON.stringify(claimedChallenges));
+  }, [portfolio, saved, claimedChallenges, loaded]);
 
   useEffect(() => {
     if (!notice) return;
@@ -73,8 +80,22 @@ export default function Home() {
   const collectionCost = portfolio.holdings.reduce((sum, holding) => sum + holding.purchasePrice, 0);
   const collectionMarket = portfolio.holdings.reduce((sum, holding) => sum + (WATCHES.find((watch) => watch.id === holding.watchId)?.market ?? 0), 0);
   const portfolioValue = portfolio.cash + collectionMarket;
-  const portfolioGain = portfolioValue - STARTING_BALANCE;
+  const claimedRewards = claimedChallenges.reduce((sum, id) => sum + (CHALLENGE_REWARDS[id] ?? 0), 0);
+  const portfolioGain = portfolioValue - STARTING_BALANCE - claimedRewards;
   const portfolioReturn = (portfolioGain / STARTING_BALANCE) * 100;
+  const ownedWatches = useMemo(() => WATCHES.filter((watch) => owned.has(watch.id)), [owned]);
+  const challenges = useMemo(() => {
+    const ownedCategories = new Set(ownedWatches.map((watch) => watch.category)).size;
+    const diveCount = ownedWatches.filter((watch) => watch.category === "Dive").length;
+    const brandCount = new Set(ownedWatches.map((watch) => watch.maker)).size;
+    return [
+      { id: "first-three", title: "First Three", description: "Build the foundation of your watch box.", progress: portfolio.holdings.length, target: 3, unit: "watches", reward: 2000 },
+      { id: "well-rounded", title: "Well Rounded", description: "Own at least one Sport, Dive, and Dress watch.", progress: ownedCategories, target: 3, unit: "categories", reward: 3000 },
+      { id: "dive-team", title: "Dive Team", description: "Assemble a three-watch dive collection.", progress: diveCount, target: 3, unit: "dive watches", reward: 2500 },
+      { id: "brand-explorer", title: "Brand Explorer", description: "Collect watches from five different makers.", progress: brandCount, target: 5, unit: "brands", reward: 4000 },
+      { id: "heavy-hitter", title: "Heavy Hitter", description: "Reach $25,000 in total collection value.", progress: collectionMarket, target: 25000, unit: "value", reward: 5000 },
+    ];
+  }, [collectionMarket, ownedWatches, portfolio.holdings.length]);
   const visibleWatches = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const base = activeTab === "collection" ? WATCHES.filter((watch) => owned.has(watch.id)) : WATCHES;
@@ -117,6 +138,14 @@ export default function Home() {
     setNotice(`${soldWatch.maker} ${soldWatch.model} sold for ${money.format(soldWatch.market)}.`);
   }
 
+  function claimChallenge(id: string, reward: number) {
+    const challenge = challenges.find((item) => item.id === id);
+    if (!challenge || challenge.progress < challenge.target || claimedChallenges.includes(id)) return;
+    setPortfolio((current) => ({ ...current, cash: current.cash + reward }));
+    setClaimedChallenges((current) => [...current, id]);
+    setNotice(`${challenge.title} complete. ${money.format(reward)} added to your play money.`);
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -124,7 +153,7 @@ export default function Home() {
         <nav className="desktop-nav" aria-label="Primary navigation">
           <button className={activeTab === "discover" ? "active" : ""} onClick={() => setActiveTab("discover")}>Discover</button>
           <button className={activeTab === "collection" ? "active" : ""} onClick={() => setActiveTab("collection")}>My collection</button>
-          <button>Challenges</button>
+          <button className={activeTab === "challenges" ? "active" : ""} onClick={() => setActiveTab("challenges")}>Challenges</button>
         </nav>
         <div className="header-actions">
           <button className="icon-button" aria-label="Search watches" onClick={() => searchRef.current?.focus()}><Search /></button>
@@ -136,9 +165,9 @@ export default function Home() {
       <section className="dashboard">
         <div className="welcome-row">
           <div>
-            <p className="eyebrow"><Sparkles /> TODAY’S DROP</p>
-            <h1>{activeTab === "discover" ? "Find your next watch." : "Your watch box."}</h1>
-            <p className="intro">{activeTab === "discover" ? "Build the collection you want. Your wallet stays untouched." : `${portfolio.holdings.length} ${portfolio.holdings.length === 1 ? "watch" : "watches"} acquired with zero buyer’s remorse.`}</p>
+            <p className="eyebrow"><Sparkles /> {activeTab === "challenges" ? "COLLECTOR CHALLENGES" : "TODAY’S DROP"}</p>
+            <h1>{activeTab === "discover" ? "Find your next watch." : activeTab === "collection" ? "Your watch box." : "Put your collection to work."}</h1>
+            <p className="intro">{activeTab === "discover" ? "Build the collection you want. Your wallet stays untouched." : activeTab === "collection" ? `${portfolio.holdings.length} ${portfolio.holdings.length === 1 ? "watch" : "watches"} acquired with zero buyer’s remorse.` : "Complete collection goals and earn more play money for your next acquisition."}</p>
           </div>
           <aside className="streak-card">
             <span className="streak-icon"><Trophy /></span>
@@ -153,6 +182,33 @@ export default function Home() {
           <div><span>{portfolioGain < 0 ? <ArrowDownRight /> : <ArrowUpRight />} Portfolio return</span><strong className={portfolioGain < 0 ? "negative" : "positive"}>{portfolioGain >= 0 ? "+" : ""}{portfolioReturn.toFixed(1)}%</strong><small>{portfolioGain >= 0 ? "+" : ""}{money.format(portfolioGain)} overall</small></div>
         </div>
 
+        {activeTab === "challenges" ? (
+          <section className="challenges-section" aria-label="Collection challenges">
+            <div className="challenge-summary">
+              <div><span className="challenge-summary-icon"><Target /></span><div><strong>{challenges.filter((challenge) => claimedChallenges.includes(challenge.id)).length} of {challenges.length} claimed</strong><span>One-time virtual rewards</span></div></div>
+              <p>Complete a requirement, then claim the reward. Selling a watch later will not remove rewards already earned.</p>
+            </div>
+            <div className="challenge-grid">
+              {challenges.map((challenge) => {
+                const complete = challenge.progress >= challenge.target;
+                const claimed = claimedChallenges.includes(challenge.id);
+                const progress = Math.min(100, (challenge.progress / challenge.target) * 100);
+                const progressLabel = challenge.unit === "value" ? `${money.format(Math.min(challenge.progress, challenge.target))} of ${money.format(challenge.target)}` : `${Math.min(challenge.progress, challenge.target)} of ${challenge.target} ${challenge.unit}`;
+                return (
+                  <article className={`challenge-card ${claimed ? "claimed" : complete ? "complete" : ""}`} key={challenge.id}>
+                    <div className="challenge-card-head"><span>{claimed ? <CircleCheck /> : <Trophy />}</span><div><p>{claimed ? "COMPLETED" : complete ? "READY TO CLAIM" : "IN PROGRESS"}</p><strong>{money.format(challenge.reward)}</strong></div></div>
+                    <h2>{challenge.title}</h2>
+                    <p>{challenge.description}</p>
+                    <div className="challenge-progress"><div><span>{progressLabel}</span><span>{Math.round(progress)}%</span></div><div className="progress-track"><i style={{ width: `${progress}%` }} /></div></div>
+                    <Button disabled={!complete || claimed} onClick={() => claimChallenge(challenge.id, challenge.reward)} className={claimed ? "challenge-claimed-button" : "challenge-claim-button"}>{claimed ? <><CircleCheck /> Reward claimed</> : complete ? <><Gift /> Claim {money.format(challenge.reward)}</> : "Keep collecting"}</Button>
+                  </article>
+                );
+              })}
+            </div>
+            <p className="challenge-disclaimer">Challenges, rewards, balances, and transactions are entirely virtual.</p>
+          </section>
+        ) : (
+          <>
         <div className="catalog-tools">
           <label className="catalog-search">
             <Search aria-hidden="true" />
@@ -206,6 +262,8 @@ export default function Home() {
         ) : (
           <div className="empty-state"><span><Compass /></span><h2>{query || category !== "All watches" ? "No watches match." : "Your watch box is waiting."}</h2><p>{query || category !== "All watches" ? "Try another search or clear your filters." : "Explore today’s drop and virtually acquire your first piece."}</p>{query || category !== "All watches" ? <Button onClick={() => { setQuery(""); setCategory("All watches"); }}>Clear filters</Button> : <Button onClick={() => setActiveTab("discover")}>Browse watches</Button>}</div>
         )}
+          </>
+        )}
       </section>
 
       <footer className="site-footer">
@@ -216,7 +274,7 @@ export default function Home() {
       <nav className="mobile-nav" aria-label="Mobile navigation">
         <button className={activeTab === "discover" ? "active" : ""} onClick={() => setActiveTab("discover")}><Compass />Discover</button>
         <button className={activeTab === "collection" ? "active" : ""} onClick={() => setActiveTab("collection")}><Watch />Collection</button>
-        <button><Trophy />Challenges</button>
+        <button className={activeTab === "challenges" ? "active" : ""} onClick={() => setActiveTab("challenges")}><Trophy />Challenges</button>
       </nav>
 
       <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
