@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, CheckCircle2, ChevronDown, CircleCheck, Compass, Gem, Gift, Heart, Search, Sparkles, Target, Trophy, WalletCards, Watch, X } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CheckCircle2, ChevronDown, CircleCheck, Compass, Gem, Gift, Heart, Search, SlidersHorizontal, Sparkles, Target, Trophy, WalletCards, Watch, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WATCHES, type WatchListing } from "@/data/watches";
@@ -11,6 +11,8 @@ type Portfolio = { cash: number; holdings: Holding[] };
 type SortOption = "curated" | "price-low" | "price-high" | "market-high" | "performance";
 type AppTab = "discover" | "saved" | "collection" | "challenges";
 type StreakState = { lastVisit: string; current: number; longest: number; rewardedDates: string[] };
+type BudgetPreference = "any" | "under-1000" | "1000-5000" | "5000-15000" | "15000-plus";
+type Preferences = { styles: WatchListing["category"][]; budget: BudgetPreference; brands: string[]; completed: boolean };
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const STARTING_BALANCE = 50000;
@@ -18,8 +20,11 @@ const PORTFOLIO_KEY = "wristlist-portfolio-v1";
 const SAVED_KEY = "wristlist-saved-v1";
 const CLAIMED_KEY = "wristlist-claimed-challenges-v1";
 const STREAK_KEY = "wristlist-streak-v1";
+const PREFERENCES_KEY = "wristlist-preferences-v1";
 const STREAK_REWARD = 2500;
 const CHALLENGE_REWARDS: Record<string, number> = { "first-three": 2000, "well-rounded": 3000, "dive-team": 2500, "brand-explorer": 4000, "heavy-hitter": 5000 };
+const DEFAULT_PREFERENCES: Preferences = { styles: ["Sport", "Dive", "Dress"], budget: "any", brands: [], completed: false };
+const WATCH_BRANDS = [...new Set(WATCHES.map((watch) => watch.maker))];
 
 function localDateKey(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -31,12 +36,31 @@ function daysBetween(previous: string, current: string) {
   return Math.round((Date.UTC(currentYear, currentMonth - 1, currentDay) - Date.UTC(previousYear, previousMonth - 1, previousDay)) / 86400000);
 }
 
-function dailySelection(dateKey: string) {
-  const seed = [...dateKey].reduce((total, character) => total * 31 + character.charCodeAt(0), 7);
-  const tiers = [WATCHES.filter((watch) => watch.price < 1500), WATCHES.filter((watch) => watch.price >= 1500 && watch.price < 10000), WATCHES.filter((watch) => watch.price >= 10000)];
-  const pick = (items: WatchListing[], offset: number) => [items[(seed + offset) % items.length], items[(seed + offset + Math.max(1, Math.floor(items.length / 2))) % items.length]];
-  const [affordable, midrange, aspirational] = [pick(tiers[0], 0), pick(tiers[1], 3), pick(tiers[2], 5)];
-  return [affordable[0], midrange[0], aspirational[0], affordable[1], midrange[1], aspirational[1]];
+function hashValue(value: string) {
+  return [...value].reduce((total, character) => (total * 31 + character.charCodeAt(0)) >>> 0, 7);
+}
+
+function matchesBudget(watch: WatchListing, budget: BudgetPreference) {
+  if (budget === "under-1000") return watch.price < 1000;
+  if (budget === "1000-5000") return watch.price >= 1000 && watch.price < 5000;
+  if (budget === "5000-15000") return watch.price >= 5000 && watch.price < 15000;
+  if (budget === "15000-plus") return watch.price >= 15000;
+  return true;
+}
+
+function dailySelection(dateKey: string, preferences: Preferences) {
+  return [...WATCHES]
+    .map((watch) => {
+      const hash = hashValue(`${dateKey}-${watch.id}`);
+      const dailyVariation = (Math.imul(hash ^ (hash >>> 16), 2246822519) >>> 0) % 61;
+      const brandScore = preferences.brands.includes(watch.maker) ? 80 : 0;
+      const styleScore = preferences.styles.includes(watch.category) ? 45 : 0;
+      const budgetScore = matchesBudget(watch, preferences.budget) ? 35 : 0;
+      return { watch, score: dailyVariation + brandScore + styleScore + budgetScore };
+    })
+    .sort((a, b) => b.score - a.score || a.watch.id - b.watch.id)
+    .slice(0, 6)
+    .map(({ watch }) => watch);
 }
 
 export default function Home() {
@@ -44,6 +68,9 @@ export default function Home() {
   const [saved, setSaved] = useState<number[]>([2]);
   const [claimedChallenges, setClaimedChallenges] = useState<string[]>([]);
   const [streak, setStreak] = useState<StreakState>({ lastVisit: "", current: 0, longest: 0, rewardedDates: [] });
+  const [preferences, setPreferences] = useState<Preferences>(DEFAULT_PREFERENCES);
+  const [draftPreferences, setDraftPreferences] = useState<Preferences>(DEFAULT_PREFERENCES);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>("discover");
   const [showAll, setShowAll] = useState(false);
   const [todayKey, setTodayKey] = useState("");
@@ -64,6 +91,7 @@ export default function Home() {
         const storedSaved = window.localStorage.getItem(SAVED_KEY);
         const storedClaims = window.localStorage.getItem(CLAIMED_KEY);
         const storedStreak = window.localStorage.getItem(STREAK_KEY);
+        const storedPreferences = window.localStorage.getItem(PREFERENCES_KEY);
         const today = localDateKey();
         let nextPortfolio: Portfolio = { cash: STARTING_BALANCE, holdings: [] };
 
@@ -83,6 +111,14 @@ export default function Home() {
 
         if (storedSaved) setSaved(JSON.parse(storedSaved));
         if (storedClaims) setClaimedChallenges(JSON.parse(storedClaims));
+        if (storedPreferences) {
+          const parsedPreferences = JSON.parse(storedPreferences) as Preferences;
+          const nextPreferences = { ...DEFAULT_PREFERENCES, ...parsedPreferences, completed: true };
+          setPreferences(nextPreferences);
+          setDraftPreferences(nextPreferences);
+        } else {
+          setPreferencesOpen(true);
+        }
         const previousStreak: StreakState = storedStreak ? JSON.parse(storedStreak) : { lastVisit: "", current: 0, longest: 0, rewardedDates: [] };
         const difference = previousStreak.lastVisit ? daysBetween(previousStreak.lastVisit, today) : null;
         const currentStreak = difference === 0 ? previousStreak.current : difference === 1 ? previousStreak.current + 1 : 1;
@@ -100,6 +136,7 @@ export default function Home() {
         setPortfolio({ cash: STARTING_BALANCE, holdings: [] });
         setStreak({ lastVisit: localDateKey(), current: 1, longest: 1, rewardedDates: [] });
         setTodayKey(localDateKey());
+        setPreferencesOpen(true);
       }
       setLoaded(true);
     }, 0);
@@ -112,7 +149,8 @@ export default function Home() {
     window.localStorage.setItem(SAVED_KEY, JSON.stringify(saved));
     window.localStorage.setItem(CLAIMED_KEY, JSON.stringify(claimedChallenges));
     window.localStorage.setItem(STREAK_KEY, JSON.stringify(streak));
-  }, [portfolio, saved, claimedChallenges, streak, loaded]);
+    if (preferences.completed) window.localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences));
+  }, [portfolio, saved, claimedChallenges, streak, preferences, loaded]);
 
   useEffect(() => {
     function updateCountdown() {
@@ -157,7 +195,7 @@ export default function Home() {
       { id: "heavy-hitter", title: "Heavy Hitter", description: "Reach $25,000 in total collection value.", progress: collectionMarket, target: 25000, unit: "value", reward: 5000 },
     ];
   }, [collectionMarket, ownedWatches, portfolio.holdings.length]);
-  const dailyWatches = useMemo(() => dailySelection(todayKey || "wristlist"), [todayKey]);
+  const dailyWatches = useMemo(() => dailySelection(todayKey || "wristlist", preferences), [preferences, todayKey]);
   const streakCycleDay = streak.current > 0 ? ((streak.current - 1) % 7) + 1 : 0;
   const daysToReward = streakCycleDay === 7 ? 7 : 7 - streakCycleDay;
   const visibleWatches = useMemo(() => {
@@ -216,6 +254,17 @@ export default function Home() {
     setNotice(`${challenge.title} complete. ${money.format(reward)} added to your play money.`);
   }
 
+  function savePreferences() {
+    if (!draftPreferences.styles.length) return;
+    const nextPreferences = { ...draftPreferences, completed: true };
+    setPreferences(nextPreferences);
+    setDraftPreferences(nextPreferences);
+    setPreferencesOpen(false);
+    setShowAll(false);
+    setActiveTab("discover");
+    setNotice("Your daily drop has been personalized.");
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -233,7 +282,7 @@ export default function Home() {
             window.setTimeout(() => searchRef.current?.focus(), 0);
           }}><Search /></button>
           <div className="balance-pill"><span>PLAY MONEY</span><strong>{money.format(portfolio.cash)}</strong></div>
-          <button className="avatar" aria-label="Profile">A</button>
+          <button className="avatar" aria-label="Open watch preferences" onClick={() => { setDraftPreferences(preferences); setPreferencesOpen(true); }}>A</button>
         </div>
       </header>
 
@@ -287,15 +336,18 @@ export default function Home() {
         <div className="catalog-tools">
           {activeTab === "discover" && (
             <div className="drop-status">
-              <div>
+              <div className="drop-copy">
                 <span><Sparkles /> {showAll ? "FULL CATALOG" : "TODAY’S SIX-WATCH DROP"}</span>
                 <small>{showAll ? `${WATCHES.length} watches available` : `New selection in ${dropCountdown || "--"}`}</small>
               </div>
-              <button type="button" onClick={() => {
-                setShowAll((current) => !current);
-                setQuery("");
-                setCategory("All watches");
-              }}>{showAll ? "View today’s drop" : "Browse all watches"}</button>
+              <div className="drop-actions">
+                <button type="button" onClick={() => {
+                  setShowAll((current) => !current);
+                  setQuery("");
+                  setCategory("All watches");
+                }}>{showAll ? "View today’s drop" : "Browse all watches"}</button>
+                <button type="button" onClick={() => { setDraftPreferences(preferences); setPreferencesOpen(true); }}>Tune my drop</button>
+              </div>
             </div>
           )}
           <label className="catalog-search">
@@ -383,6 +435,59 @@ export default function Home() {
             <div><span>Gain / loss</span><strong className={(selling?.market ?? 0) - (portfolio.holdings.find((holding) => holding.watchId === selling?.id)?.purchasePrice ?? 0) < 0 ? "negative" : "positive"}>{money.format((selling?.market ?? 0) - (portfolio.holdings.find((holding) => holding.watchId === selling?.id)?.purchasePrice ?? 0))}</strong></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setSelling(null)}>Keep watch</Button><Button className="sell-confirm-button" onClick={sell}>Sell at market</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={preferencesOpen} onOpenChange={(open) => {
+        if (!open && !preferences.completed) return;
+        setPreferencesOpen(open);
+        if (open) setDraftPreferences(preferences);
+      }}>
+        <DialogContent className="preferences-dialog">
+          <DialogHeader>
+            <p className="eyebrow"><SlidersHorizontal /> PERSONALIZE YOUR DROP</p>
+            <DialogTitle>What belongs in your watch box?</DialogTitle>
+            <DialogDescription>Choose what catches your eye. You can change these preferences anytime from the profile button.</DialogDescription>
+          </DialogHeader>
+
+          <div className="preference-group">
+            <div className="preference-heading"><strong>Styles</strong><span>Select at least one</span></div>
+            <div className="preference-options">
+              {(["Sport", "Dive", "Dress"] as WatchListing["category"][]).map((style) => {
+                const selectedStyle = draftPreferences.styles.includes(style);
+                return <button type="button" key={style} className={selectedStyle ? "selected" : ""} onClick={() => setDraftPreferences((current) => ({ ...current, styles: selectedStyle ? current.styles.filter((item) => item !== style) : [...current.styles, style] }))}>{style}</button>;
+              })}
+            </div>
+          </div>
+
+          <div className="preference-group">
+            <div className="preference-heading"><strong>Price range</strong><span>Pick one</span></div>
+            <div className="preference-options">
+              {([
+                ["any", "Surprise me"],
+                ["under-1000", "Under $1,000"],
+                ["1000-5000", "$1,000–$5,000"],
+                ["5000-15000", "$5,000–$15,000"],
+                ["15000-plus", "$15,000+"]
+              ] as [BudgetPreference, string][]).map(([value, label]) => <button type="button" key={value} className={draftPreferences.budget === value ? "selected" : ""} onClick={() => setDraftPreferences((current) => ({ ...current, budget: value }))}>{label}</button>)}
+            </div>
+          </div>
+
+          <div className="preference-group">
+            <div className="preference-heading"><strong>Favorite brands</strong><span>Choose up to three</span></div>
+            <div className="preference-options brand-options">
+              {WATCH_BRANDS.map((brand) => {
+                const selectedBrand = draftPreferences.brands.includes(brand);
+                const atLimit = draftPreferences.brands.length >= 3 && !selectedBrand;
+                return <button type="button" key={brand} disabled={atLimit} className={selectedBrand ? "selected" : ""} onClick={() => setDraftPreferences((current) => ({ ...current, brands: selectedBrand ? current.brands.filter((item) => item !== brand) : [...current.brands, brand] }))}>{brand}</button>;
+              })}
+            </div>
+          </div>
+
+          <DialogFooter className="preferences-footer">
+            {preferences.completed && <Button variant="outline" onClick={() => setDraftPreferences({ ...DEFAULT_PREFERENCES, completed: true })}>Reset choices</Button>}
+            <Button className="save-preferences-button" disabled={!draftPreferences.styles.length} onClick={savePreferences}>{preferences.completed ? "Update my drop" : "Build my first drop"}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
